@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+pydantic
+pandas
+lifelines
+sqlalchemy
+psycopg2-binary

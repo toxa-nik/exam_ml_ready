@@ -1,0 +1,126 @@
+version: '3.8'
+
+networks:
+  frontend_net:
+    driver: bridge
+  backend_net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  mlflow_artifacts:
+  shared_models:
+  grafana_data:
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres_db
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ml_database
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ml_database"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  mlflow:
+    image: python:3.10-slim
+    container_name: mlflow_server
+    ports:
+      - "5000:5000"
+    environment:
+      - MLFLOW_BACKEND_STORE_URI=postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/ml_database
+      - MLFLOW_DEFAULT_ARTIFACT_ROOT=/mlflow/artifacts
+    volumes:
+      - mlflow_artifacts:/mlflow/artifacts
+      - shared_models:/shared_models
+    networks:
+      - backend_net
+      - frontend_net
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: bash -c "pip install mlflow psycopg2-binary && mlflow server --host 0.0.0.0 --port 5000 --serve-artifacts --allowed-hosts '*' --cors-allowed-origins '*'"
+
+  node_exporter:
+    image: prom/node-exporter:latest
+    container_name: node_exporter
+    networks:
+      - backend_net
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - backend_net
+    depends_on:
+      - node_exporter
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana_provisioning:/etc/grafana/provisioning
+    networks:
+      - frontend_net
+      - backend_net
+    depends_on:
+      - prometheus
+
+  dagster:
+    build: 
+      context: ./orchestration
+    container_name: dagster_server
+    ports:
+      - "3000:3000"
+    environment:
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_DB=ml_database
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    volumes:
+      - ./orchestration/src:/opt/dagster/app/src
+      - ./data:/opt/dagster/app/data
+      - shared_models:/shared_models
+    networks:
+      - backend_net
+      - frontend_net
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  fastapi:
+    build:
+      context: ./api
+    container_name: fastapi_server
+    ports:
+      - "8000:8000"
+    environment:
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_DB=ml_database
+      - API_KEY=${API_KEY}
+      - MODEL_PATH=/shared_models/cox_model.pkl
+    volumes:
+      - shared_models:/shared_models
+    networks:
+      - frontend_net
+      - backend_net

@@ -1,0 +1,4 @@
+load_from:
+  - python_file:
+      relative_path: src/pipeline.py
+      location_name: mlops_pipeline

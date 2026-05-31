@@ -1,0 +1,12 @@
+grafana_data/
+postgres_data/
+/orchestration/data/
+.tmp_dagster_home*/
+.env
+.env.*
+.venv/
+venv/
+__pycache__/
+*.pyc
+/data/
+/shared_models/
