@@ -8,6 +8,7 @@ from evidently.test_suite import TestSuite
 from evidently.tests import TestNumberOfMissingValues, TestColumnsType
 import mlflow
 from lifelines import CoxPHFitter
+import tempfile
 
 logger = get_dagster_logger()
 
@@ -97,7 +98,10 @@ def logged_mlflow_model(trained_cox_model, validated_student_data: pd.DataFrame)
     mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000"))
     mlflow.set_experiment("EdTech_Student_Churn")
 
-    with mlflow.start_run():
+    mlflow.autolog(disable=True) 
+
+    run = mlflow.start_run()
+    try:
         mlflow.log_param("features", ", ".join(FEATURES))
         mlflow.log_param("model_type", "CoxPH")
 
@@ -108,14 +112,16 @@ def logged_mlflow_model(trained_cox_model, validated_student_data: pd.DataFrame)
         except Exception as e:
             logger.warning(f"Не удалось посчитать C-index: {e}")
 
-        model_dir = "/shared_models"
-        os.makedirs(model_dir, exist_ok=True)
-        model_path = os.path.join(model_dir, "cox_model.pkl")
-        
-        with open(model_path, "wb") as f:
-            pickle.dump(trained_cox_model, f)
-        
-        mlflow.log_artifact(model_path)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            model_path = os.path.join(temp_dir, "cox_model.pkl")
+            
+            with open(model_path, "wb") as f:
+                pickle.dump(trained_cox_model, f)
+            
+            mlflow.log_artifact(model_path, artifact_path="model") 
 
-    logger.info("Пайплайн завершен!")
+    finally:
+        mlflow.end_run()
+
+    logger.info("Пайплайн завершен и модель сохранена в MLflow!")
     return True
