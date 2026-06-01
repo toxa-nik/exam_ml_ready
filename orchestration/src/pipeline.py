@@ -96,7 +96,7 @@ def logged_mlflow_model(trained_cox_model, validated_student_data: pd.DataFrame)
     logger.info("Связь с сервером MLflow...")
 
     mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000"))
-    mlflow.set_experiment("EdTech_Student_Churn")
+    mlflow.set_experiment("EdTech_Student_Churn_v2")
 
     mlflow.autolog(disable=True) 
 
