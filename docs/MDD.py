@@ -39,7 +39,8 @@ def run_mdd():
     t_stat, p_value = stats.ttest_ind(
         existing_system_responses, 
         improved_system_responses, 
-        alternative='greater'
+        alternative='greater',
+        equal_var=False
     )
 
     print("Результаты стат.анализа:")
