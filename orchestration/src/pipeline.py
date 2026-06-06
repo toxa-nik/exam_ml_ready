@@ -70,9 +70,6 @@ def validated_student_data(raw_student_data: pd.DataFrame) -> pd.DataFrame:
     raw_student_data = raw_student_data.fillna(0) 
     return raw_student_data
         
-    logger.info("Валидация успешно пройдена.")
-    return raw_student_data
-
 @asset(group_name="ml_pipeline")
 def trained_cox_model(validated_student_data: pd.DataFrame):
     """Обучает интерпретируемую модель CoxPHFitter."""
