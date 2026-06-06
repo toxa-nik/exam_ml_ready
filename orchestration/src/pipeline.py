@@ -3,7 +3,7 @@ import pickle
 import pandas as pd
 import numpy as np
 import sqlalchemy
-from dagster import asset, get_dagster_logger
+from dagster import asset, get_dagster_logger, Definitions, define_asset_job, ScheduleDefinition, load_assets_from_current_module
 from evidently.test_suite import TestSuite
 from evidently.tests import TestNumberOfMissingValues, TestColumnsType
 import mlflow
@@ -125,3 +125,21 @@ def logged_mlflow_model(trained_cox_model, validated_student_data: pd.DataFrame)
 
     logger.info("Пайплайн завершен и модель сохранена в MLflow!")
     return True
+    
+all_assets = load_assets_from_current_module()
+
+retrain_model_job = define_asset_job(
+    name="daily_job",
+    selection="*"
+) 
+
+daily_schedule = ScheduleDefinition(
+    job=retrain_model_job,
+    cron_schedule="0 2 * * *",
+)
+    
+defs = Definitions(
+    assets=all_assets,
+    jobs=[retrain_model_job],
+    schedules=[daily_schedule],
+)
